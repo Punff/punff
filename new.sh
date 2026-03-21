@@ -9,51 +9,59 @@ TODAY=$(date +%Y-%m-%d)
 MONTH=$(date +%Y-%m)
 MONTH_FILE="$MONTHS_DIR/$MONTH.html"
 
-ROTATIONS=("-0.8deg" "1.1deg" "-1.4deg" "0.7deg" "-0.9deg" "0.4deg" "1.3deg" "-0.5deg" "1.8deg" "-1.1deg")
+ROTATIONS=("r1" "r2" "r3" "r4" "r5" "r6")
 ROT=${ROTATIONS[$((RANDOM % ${#ROTATIONS[@]}))]}
 
 BORDERS=(
-  "M2,2.5 C25,1.8 75,2.2 98,1.8 C98.5,25 98.2,75 98.5,98 C75,98.4 25,97.8 2,98.3 C1.5,75 1.8,25 2,2.5Z|1.8"
+  "M2,2.5 C25,1.8 75,2.2 98,2 C98.5,25 98.2,75 98.5,98 C75,98.4 25,97.8 2,98.3 C1.5,75 1.8,25 2,2.5Z|1.8"
   "M2.5,1.8 C30,2.5 70,1.5 97.5,2.5 C98.5,28 97.8,72 98.5,98.5 C72,97.5 28,98.8 2,97.5 C1.2,72 2,28 2.5,1.8Z|2.5"
   "M3,2 C28,1.2 72,2.5 98,1.5 C98.8,30 98.2,68 97.5,98 C70,99 30,98.2 2.5,99 C1.8,70 2.2,28 3,2Z|1.4"
   "M2.2,2 C28,1.8 72,2.5 97.8,1.5 C98.5,30 97.5,68 98.8,97.5 C72,98.8 28,97.5 2.5,98.5 C1.5,68 2.2,30 2.2,2Z|1.2"
   "M1.8,1.5 C30,2.8 70,1.2 98.5,2.5 C97.8,28 98.5,72 98,98.5 C70,97.2 28,98.8 2.2,97.5 C2.5,72 1.5,30 1.8,1.5Z|2"
   "M3,1.8 C28,2.5 72,1.5 97.5,2.8 C98.2,30 99,70 97.8,98.2 C70,99.5 30,97.8 2.5,98.8 C1.8,70 2.5,28 3,1.8Z|1.6"
 )
-BORDER_RAW=${BORDERS[$((RANDOM % ${#BORDERS[@]}))]}
-BORDER_PATH="${BORDER_RAW%|*}"
-BORDER_WIDTH="${BORDER_RAW#*|}"
+pick_border() {
+  local b=${BORDERS[$((RANDOM % ${#BORDERS[@]}))]}
+  BORDER_PATH="${b%|*}"
+  BORDER_WIDTH="${b#*|}"
+}
 
 border_svg() {
-  echo "<svg class=\"border\" viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\"><path d=\"$BORDER_PATH\" fill=\"none\" stroke=\"#111\" stroke-width=\"$BORDER_WIDTH\" vector-effect=\"non-scaling-stroke\"/></svg>"
+  local dash="${1:-}"
+  local dashattr=""
+  [ -n "$dash" ] && dashattr=' stroke-dasharray="4 3"'
+  echo "<svg class=\"b\" viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\"><path d=\"$BORDER_PATH\" fill=\"none\" stroke=\"#1c1c17\" stroke-width=\"$BORDER_WIDTH\"$dashattr vector-effect=\"non-scaling-stroke\"/></svg>"
 }
 
 card_open() {
-  local extra_class="${1:-}"
-  echo "<div class=\"card $extra_class\" style=\"transform:rotate($ROT);\">"
+  local extra="${1:-}"
+  pick_border
+  echo "<div class=\"card $ROT $extra\">"
   border_svg
+}
+
+card_open_dashed() {
+  pick_border
+  echo "<div class=\"card $ROT\">"
+  border_svg "dashed"
 }
 
 card_close() {
   local date="${1:-$TODAY}"
-  echo "  <div class=\"date-tag\">$date</div>"
+  echo "  <div class=\"date\">$date</div>"
   echo "</div>"
   echo ""
 }
 
 init_month() {
   if [ ! -f "$MONTH_FILE" ]; then
-    local month_rot=${ROTATIONS[$((RANDOM % ${#ROTATIONS[@]}))]}
-    local mb=${BORDERS[$((RANDOM % ${#BORDERS[@]}))]}
-    local mp="${mb%|*}"
-    local mw="${mb#*|}"
+    local rot=${ROTATIONS[$((RANDOM % ${#ROTATIONS[@]}))]}
+    pick_border
     cat > "$MONTH_FILE" <<EOF
-<div class="month-section">
-<div class="card month-card" style="transform:rotate($month_rot);">
-  <svg class="border" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="$mp" fill="none" stroke="#111" stroke-width="$mw" vector-effect="non-scaling-stroke"/></svg>
-  <div class="month-text">$(date +"%B" | tr '[:upper:]' '[:lower:]')<span class="month-year">$(date +%Y)</span></div>
+<div class="card month-card $rot">
+  <svg class="b" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="$BORDER_PATH" fill="none" stroke="#1c1c17" stroke-width="$BORDER_WIDTH" vector-effect="non-scaling-stroke"/></svg>
+  <div class="month-label">$(date +"%B" | tr '[:upper:]' '[:lower:]')<span class="month-year">$(date +%Y)</span></div>
 </div>
-<div class="grid">
 EOF
     echo "  → created $MONTH_FILE"
   fi
@@ -61,23 +69,29 @@ EOF
 
 append_card() {
   local card="$1"
-  local tmp=$(mktemp)
-  head -n -2 "$MONTH_FILE" > "$tmp"
-  echo "$card" >> "$tmp"
-  echo "</div>" >> "$tmp"
-  echo "</div>" >> "$tmp"
-  mv "$tmp" "$MONTH_FILE"
+  echo "$card" >> "$MONTH_FILE"
 }
+
+# ── card builders ─────────────────────────────────────────────────────────────
 
 card_text() {
   echo ""
   read -p "text: " content
+  read -p "italic? [y/n, default y]: " ital
+  ital=${ital:-y}
+  read -p "dark card? [y/n, default n]: " dark
+  dark=${dark:-n}
   read -p "date [$TODAY]: " date
   date=${date:-$TODAY}
+
+  local extra=""
+  [ "$dark" = "y" ] && extra="dark" || extra="filled"
+  local cls="text-body"
+  [ "$ital" = "y" ] && cls="text-body i"
+
   local card
-  card="$(card_open)
-  <span class=\"type-tag\">text</span>
-  <p class=\"text-content i\">$content</p>
+  card="$(card_open "$extra")
+  <p class=\"$cls\">$content</p>
 $(card_close "$date")"
   append_card "$card"
 }
@@ -90,13 +104,12 @@ card_music() {
     [ -z "$line" ] && break
     local artist=$(echo "$line" | awk -F' - ' '{print $1}' | sed 's/[[:space:]]*$//')
     local title=$(echo "$line" | awk -F' - ' '{print $2}' | sed 's/^[[:space:]]*//')
-    tracks+="  <div class=\"track-line\"><span class=\"track-artist\">$artist</span>$title</div>\n"
+    tracks+="  <div class=\"track\"><span class=\"track-artist\">$artist</span>$title</div>\n"
   done
   read -p "date [$TODAY]: " date
   date=${date:-$TODAY}
   local card
-  card="$(card_open)
-  <span class=\"type-tag\">music</span>
+  card="$(card_open_dashed)
 $(echo -e "$tracks")$(card_close "$date")"
   append_card "$card"
 }
@@ -110,13 +123,12 @@ card_link() {
     local title=$(echo "$line" | cut -d'|' -f1 | sed 's/[[:space:]]*$//')
     local source=$(echo "$line" | cut -d'|' -f2 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
     local url=$(echo "$line" | cut -d'|' -f3 | sed 's/^[[:space:]]*//')
-    links+="  <a class=\"link-item\" href=\"$url\">$title<br><span class=\"link-src\">$source</span></a>\n"
+    links+="  <a class=\"link-row\" href=\"$url\">$title<span class=\"link-src\">$source</span></a>\n"
   done
   read -p "date [$TODAY]: " date
   date=${date:-$TODAY}
   local card
-  card="$(card_open)
-  <span class=\"type-tag\">links</span>
+  card="$(card_open "filled")
 $(echo -e "$links")$(card_close "$date")"
   append_card "$card"
 }
@@ -128,30 +140,32 @@ card_travel() {
   read -p "date [$TODAY]: " date
   date=${date:-$TODAY}
   local card
-  card="$(card_open)
-  <span class=\"type-tag\">travel</span>
-  <div class=\"travel-route\">$from<span class=\"travel-arrow\">→</span>$to</div>
-  <div class=\"travel-meta\">$date — $note</div>
+  card="$(card_open "filled")
+  <div class=\"route\">$from<span class=\"route-arrow\">→</span>$to</div>
+  <div class=\"route-meta\">$date — $note</div>
 $(card_close "$date")"
   append_card "$card"
 }
 
 card_film() {
-  echo "films (title | year), empty line to finish:"
+  echo "films (title | year), mark seen with a * at the end: title | year | *"
+  echo "empty line to finish:"
   local items=""
   while true; do
     read -p "  > " line
     [ -z "$line" ] && break
     local title=$(echo "$line" | cut -d'|' -f1 | sed 's/[[:space:]]*$//')
-    local year=$(echo "$line" | cut -d'|' -f2 | sed 's/^[[:space:]]*//')
-    items+="  <div class=\"li\">$title<span>$year</span></div>\n"
+    local year=$(echo "$line" | cut -d'|' -f2 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    local seen=$(echo "$line" | cut -d'|' -f3 | sed 's/^[[:space:]]*//')
+    local cls="film-row"
+    [ "$seen" = "*" ] && cls="film-row seen"
+    items+="  <div class=\"$cls\">$title<span class=\"film-year\">$year</span></div>\n"
   done
   read -p "date [$TODAY]: " date
   date=${date:-$TODAY}
   local card
-  card="$(card_open)
-  <span class=\"type-tag\">films</span>
-$(echo -e "$items")  <div style=\"font-size:9px;color:#aaa;margin-top:9px;\">suggest → mario@punff.port0.org</div>
+  card="$(card_open_dashed)
+$(echo -e "$items")  <div class=\"suggest\">suggest → mario@punff.port0.org</div>
 $(card_close "$date")"
   append_card "$card"
 }
@@ -182,26 +196,23 @@ card_photo() {
     local fname=$(basename "$f")
     cp "$f" "$ASSETS_DIR/photos/$fname"
     if [ "$ptype" = "single" ]; then
-      photo_tags+="  <div class=\"ph full\" style=\"background-image:url('/assets/photos/$fname');background-size:cover;background-position:center;\"></div>\n"
+      photo_tags+="  <div class=\"ph-full\"><img src=\"/assets/photos/$fname\" alt=\"\"/></div>\n"
     else
-      photo_tags+="  <div class=\"ph sq\" style=\"background-image:url('/assets/photos/$fname');background-size:cover;background-position:center;\"></div>\n"
+      photo_tags+="    <div class=\"ph sq\"><img src=\"/assets/photos/$fname\" alt=\"\"/></div>\n"
     fi
   done
 
-  local extra=""
-  [ "$ptype" = "dump" ] && extra="wide"
-
   local card
   if [ "$ptype" = "dump" ]; then
-    card="$(card_open "$extra")
-  <span class=\"type-tag\">photo dump</span>
+    card="$(card_open)
   <div class=\"photo-grid\">
 $(echo -e "$photo_tags")  </div>
 $(card_close "$date")"
   else
     card="$(card_open)
-  <span class=\"type-tag\">photo</span>
-$(echo -e "$photo_tags")$(card_close "$date")"
+  <div style=\"padding:0;\">
+$(echo -e "$photo_tags")  </div>
+$(card_close "$date")"
   fi
 
   append_card "$card"
@@ -225,13 +236,27 @@ card_audio() {
     if command -v ffprobe &>/dev/null; then
       dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$fpath" 2>/dev/null | awk '{m=int($1/60);s=int($1%60);printf "%d:%02d",m,s}')
     fi
-    audio_tags+="  <div class=\"audio-row\"><div class=\"audio-play\"><div class=\"audio-tri\"></div></div><span class=\"audio-title\">$f</span><span class=\"audio-dur\">$dur</span></div>\n"
+    audio_tags+="  <div class=\"audio-row\"><div class=\"play-btn\" data-file=\"$f\"><div class=\"tri\"></div></div><span class=\"audio-title\">$f</span><span class=\"audio-dur\">$dur</span></div>\n"
   done
 
   local card
   card="$(card_open)
-  <span class=\"type-tag\">audio</span>
 $(echo -e "$audio_tags")$(card_close "$date")"
+  append_card "$card"
+}
+
+card_video() {
+  read -p "youtube url: " url
+  read -p "title (optional): " title
+  read -p "date [$TODAY]: " date
+  date=${date:-$TODAY}
+  local card
+  card="$(card_open)
+  <a href=\"$url\" target=\"_blank\" style=\"text-decoration:none;\">
+    <div class=\"yt-box\"><div class=\"yt-tri\"></div></div>
+  </a>
+  $([ -n "$title" ] && echo "<div class=\"yt-title\">$title</div>")
+$(card_close "$date")"
   append_card "$card"
 }
 
@@ -241,8 +266,7 @@ card_gear() {
   read -p "date [$TODAY]: " date
   date=${date:-$TODAY}
   local card
-  card="$(card_open)
-  <span class=\"type-tag\">gear</span>
+  card="$(card_open "filled")
   <div class=\"gear-name\">$name</div>
   <div class=\"gear-note\">$note</div>
 $(card_close "$date")"
@@ -264,9 +288,21 @@ card_recipe() {
   date=${date:-$TODAY}
   local card
   card="$(card_open)
-  <span class=\"type-tag\">recipe</span>
-  <div class=\"gear-name\" style=\"margin-bottom:8px;\">$name</div>
+  <div class=\"recipe-name\">$name</div>
 $(echo -e "$rows")$(card_close "$date")"
+  append_card "$card"
+}
+
+card_event() {
+  read -p "name: " name
+  read -p "meta (place, people, etc): " meta
+  read -p "date [$TODAY]: " date
+  date=${date:-$TODAY}
+  local card
+  card="$(card_open "filled")
+  <div class=\"event-name\">$name</div>
+  <div class=\"event-meta\">$meta</div>
+$(card_close "$date")"
   append_card "$card"
 }
 
@@ -282,8 +318,10 @@ echo "  4) travel"
 echo "  5) film"
 echo "  6) photo"
 echo "  7) audio"
-echo "  8) gear"
-echo "  9) recipe"
+echo "  8) video"
+echo "  9) gear"
+echo " 10) recipe"
+echo " 11) event"
 echo ""
 read -p "type: " choice
 
@@ -298,8 +336,10 @@ case $choice in
   5|film)    card_film ;;
   6|photo)   card_photo ;;
   7|audio)   card_audio ;;
-  8|gear)    card_gear ;;
-  9|recipe)  card_recipe ;;
+  8|video)   card_video ;;
+  9|gear)    card_gear ;;
+  10|recipe) card_recipe ;;
+  11|event)  card_event ;;
   *) echo "unknown type"; exit 1 ;;
 esac
 

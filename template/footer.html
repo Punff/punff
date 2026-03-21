@@ -1,21 +1,21 @@
 <script>
-document.querySelectorAll('.audio-play').forEach(function(btn) {
+document.querySelectorAll('.play-btn').forEach(function(btn) {
   var audio = null;
   btn.addEventListener('click', function() {
-    var row = btn.closest('.audio-row');
-    var title = row.querySelector('.audio-title').textContent.trim();
+    var file = btn.dataset.file;
+    if (!file) return;
     if (audio && !audio.paused) {
       audio.pause();
-      btn.querySelector('.audio-tri').style.borderLeft = '6px solid #111';
+      btn.querySelector('.tri').style.borderLeft = '8px solid #fcf9f0';
       return;
     }
     document.querySelectorAll('audio').forEach(function(a){ a.pause(); });
-    document.querySelectorAll('.audio-tri').forEach(function(t){ t.style.borderLeft = '6px solid #111'; });
-    audio = new Audio('/assets/audio/' + title);
+    document.querySelectorAll('.tri').forEach(function(t){ t.style.borderLeft = '8px solid #fcf9f0'; });
+    audio = new Audio('/assets/audio/' + file);
     audio.play();
-    btn.querySelector('.audio-tri').style.borderLeft = '6px solid #888';
+    btn.querySelector('.tri').style.borderLeft = '8px solid #888';
     audio.onended = function() {
-      btn.querySelector('.audio-tri').style.borderLeft = '6px solid #111';
+      btn.querySelector('.tri').style.borderLeft = '8px solid #fcf9f0';
     };
   });
 });
