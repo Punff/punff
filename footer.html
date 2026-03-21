@@ -1,0 +1,24 @@
+<script>
+document.querySelectorAll('.audio-play').forEach(function(btn) {
+  var audio = null;
+  btn.addEventListener('click', function() {
+    var row = btn.closest('.audio-row');
+    var title = row.querySelector('.audio-title').textContent.trim();
+    if (audio && !audio.paused) {
+      audio.pause();
+      btn.querySelector('.audio-tri').style.borderLeft = '6px solid #111';
+      return;
+    }
+    document.querySelectorAll('audio').forEach(function(a){ a.pause(); });
+    document.querySelectorAll('.audio-tri').forEach(function(t){ t.style.borderLeft = '6px solid #111'; });
+    audio = new Audio('/assets/audio/' + title);
+    audio.play();
+    btn.querySelector('.audio-tri').style.borderLeft = '6px solid #888';
+    audio.onended = function() {
+      btn.querySelector('.audio-tri').style.borderLeft = '6px solid #111';
+    };
+  });
+});
+</script>
+</body>
+</html>
