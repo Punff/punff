@@ -1,15 +1,32 @@
 #!/bin/bash
 
-PUNFF_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT="/var/www/html/index.html"
+set -e
 
-cat "$PUNFF_DIR/template/header.html" > "$OUTPUT"
+echo "🔨 Building punff feed..."
+cd "$(dirname "$0")"
 
-for f in $(ls "$PUNFF_DIR/months/"*.html 2>/dev/null | sort -r); do
-  cat "$f" >> "$OUTPUT"
-  echo "" >> "$OUTPUT"
-done
+# Check for Node.js
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is required but not installed"
+    echo "Install with: sudo apt install nodejs"
+    exit 1
+fi
 
-cat "$PUNFF_DIR/template/footer.html" >> "$OUTPUT"
+# Run the build script
+node scripts/build.js
 
-echo "  built → $OUTPUT"
+# Copy to web directory if configured (simple auto-deploy)
+if [ -d "/var/www/html" ]; then
+    echo "📤 Auto-copying to /var/www/html..."
+    # Copy all necessary files
+    cp index.html photos-data.json /var/www/html/ 2>/dev/null || echo "⚠️  Could not copy HTML/data files"
+    # Copy assets if they exist
+    if [ -d "assets" ]; then
+        cp -r assets/ /var/www/html/ 2>/dev/null || echo "⚠️  Could not copy assets (permissions?)"
+    fi
+    echo "✅ Site copied to /var/www/html"
+    echo "   For full deployment with photo skipping, run: ./deploy.sh"
+fi
+
+echo "✨ Build complete!"
+echo "🌐 Open index.html in your browser to view the site"

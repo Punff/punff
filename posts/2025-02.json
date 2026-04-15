@@ -1,0 +1,27 @@
+[
+  {
+    "id": "2025-02-28-snow",
+    "date": "2025-02-28T10:30:00Z",
+    "photos": ["snow-1.jpg", "snow-2.jpg", "snow-3.jpg"]
+  },
+  {
+    "id": "2025-02-25-books",
+    "date": "2025-02-25T16:45:00Z",
+    "photos": ["books.jpg"]
+  },
+  {
+    "id": "2025-02-22-concert",
+    "date": "2025-02-22T21:20:00Z",
+    "photos": ["concert.jpg"]
+  },
+  {
+    "id": "2025-02-18-macro",
+    "date": "2025-02-18T13:15:00Z",
+    "photos": ["macro.jpg"]
+  },
+  {
+    "id": "2025-02-15-market",
+    "date": "2025-02-15T08:30:00Z",
+    "photos": ["market-1.jpg", "market-2.jpg", "market-3.jpg", "market-4.jpg", "market-5.jpg", "market-6.jpg"]
+  }
+]

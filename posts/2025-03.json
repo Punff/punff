@@ -1,0 +1,27 @@
+[
+  {
+    "id": "2025-03-15-sunset",
+    "date": "2025-03-15T16:30:00Z",
+    "photos": ["sunset.jpg"]
+  },
+  {
+    "id": "2025-03-14-street",
+    "date": "2025-03-14T11:20:00Z",
+    "photos": ["street.jpg"]
+  },
+  {
+    "id": "2025-03-12-cafe",
+    "date": "2025-03-12T15:45:00Z",
+    "photos": ["cafe-1.jpg", "cafe-2.jpg", "cafe-3.jpg", "cafe-4.jpg"]
+  },
+  {
+    "id": "2025-03-10-portrait",
+    "date": "2025-03-10T14:10:00Z",
+    "photos": ["portrait.jpg"]
+  },
+  {
+    "id": "2025-03-08-mountains",
+    "date": "2025-03-08T09:15:00Z",
+    "photos": ["mountains.jpg"]
+  }
+]
