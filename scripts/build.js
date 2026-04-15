@@ -3,160 +3,125 @@
 const fs = require('fs');
 const path = require('path');
 
-const PHOTOS_DIR = path.join(__dirname, '..', 'assets', 'photos');
+const PHOTOS_DIR    = path.join(__dirname, '..', 'assets', 'photos');
 const TEMPLATE_FILE = path.join(__dirname, '..', 'templates', 'base.html');
-const OUTPUT_FILE = path.join(__dirname, '..', 'index.html');
-const PHOTOS_DATA_FILE = path.join(__dirname, '..', 'photos-data.json');
+const OUTPUT_FILE   = path.join(__dirname, '..', 'index.html');
+const DATA_FILE     = path.join(__dirname, '..', 'photos-data.json');
 
-function parseDateFromFilename(filename) {
-  // Try to extract date from filename patterns like:
-  // 2026-03-11_20.09.11.png
-  // 20250311_200911.jpg
-  // IMG_20250311_200911.jpg
-  
-  const match = filename.match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})[_\-\.]?(\d{2})[\.\-_]?(\d{2})[\.\-_]?(\d{2})/);
-  if (match) {
-    const [_, year, month, day, hour, minute, second] = match;
-    return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
-  }
-  
-  // Fallback: use file modification time
+const INITIAL_LOAD   = 20;
+const LOAD_MORE_BATCH = 10;
+
+// ─── date helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Olympus filenames: P<MMDD><seq>.JPG  (no time encoded)
+ * Fall back to mtime, which is reliable enough for ordering.
+ */
+function dateFromFile(filename) {
   try {
     const stats = fs.statSync(path.join(PHOTOS_DIR, filename));
     return new Date(stats.mtime);
   } catch {
-    return new Date(); // Current date as last resort
+    return new Date();
   }
 }
 
-function formatDateTime(date) {
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).replace(',', '');
+/**
+ * Returns a compact, unambiguous label: "Apr 13  22:29"
+ * Uses UTC+2 (Zagreb / CEST) offset baked in via toLocaleString options.
+ * Change timeZone if needed.
+ */
+function formatLabel(date) {
+  return date.toLocaleString('en-GB', {
+    timeZone: 'Europe/Zagreb',
+    month:    'short',
+    day:      'numeric',
+    hour:     '2-digit',
+    minute:   '2-digit',
+    hour12:   false,
+  }).replace(',', '');   // "13 Apr  22:29" → keep as-is or reformat below
 }
 
-function formatMonth(date) {
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric'
-  });
-}
+// ─── HTML generation ─────────────────────────────────────────────────────────
 
-function generatePhotoHTML(photo, index) {
-  const dateTime = formatDateTime(photo.date);
-  
-  // Random offset class (1-6)
-  const offsetClass = `offset-${(index % 6) + 1}`;
-  
+function photoHTML(photo, index) {
+  const offset = `offset-${(index % 6) + 1}`;
   return `
-    <div class="photo-item ${offsetClass}" data-filename="${photo.filename}" data-date="${photo.date.toISOString()}">
+    <div class="photo-item ${offset}" data-filename="${photo.filename}" data-date="${photo.date}">
       <img src="assets/photos/${photo.filename}" alt="" loading="lazy">
-      <div class="photo-time">${dateTime}</div>
-    </div>
-  `;
+      <div class="photo-time">${photo.label}</div>
+    </div>`;
 }
 
+// ─── build ───────────────────────────────────────────────────────────────────
 
+async function build() {
+  console.log('🔨 Building punff...');
 
-async function buildSite() {
-  console.log('🔨 Building punff from photos...');
-  
-  // Read template
   const template = fs.readFileSync(TEMPLATE_FILE, 'utf8');
-  
-  // Get all photo files
-  const photoFiles = fs.readdirSync(PHOTOS_DIR)
-    .filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file))
+
+  const photos = fs.readdirSync(PHOTOS_DIR)
+    .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f))
     .map(filename => {
-      const date = parseDateFromFilename(filename);
-      return { filename, date };
+      const date  = dateFromFile(filename);
+      const label = formatLabel(date);
+      return { filename, date: date.toISOString(), label };
     })
-    .sort((a, b) => b.date - a.date); // Newest first
-  
-  console.log(`📸 Found ${photoFiles.length} photos`);
-  
-  if (photoFiles.length === 0) {
-    console.log('❌ No photos found in assets/photos/');
-    console.log('   Add some photos and run again');
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  if (!photos.length) {
+    console.error('❌ No photos found in assets/photos/');
     process.exit(1);
   }
-  
-  // Save photo data for JavaScript to use (just filenames and dates)
-  const photoDataForJs = photoFiles.map(photo => ({
-    filename: photo.filename,
-    date: photo.date.toISOString()
-  }));
-  
-  fs.writeFileSync(PHOTOS_DATA_FILE, JSON.stringify(photoDataForJs, null, 2));
-  
-  // Also embed photo data in HTML for file:// protocol support
-  const embeddedPhotoData = JSON.stringify(photoDataForJs);
-  
-  // Initial load batch size
-  const INITIAL_LOAD = 20;
-  const LOAD_MORE_BATCH = 10;
-  
-  const initialPhotos = photoFiles.slice(0, INITIAL_LOAD);
-  const remainingPhotos = photoFiles.slice(INITIAL_LOAD);
-  
-  console.log(`📱 Initial load: ${initialPhotos.length} photos`);
-  console.log(`   ${remainingPhotos.length} more photos available for lazy loading`);
-  
-  // Generate initial HTML
-  let allContent = '';
-  initialPhotos.forEach((photo, index) => {
-    allContent += generatePhotoHTML(photo, index);
-  });
-  
-  // Add load more placeholder if there are more photos
-  if (remainingPhotos.length > 0) {
-    allContent += `
-      <div id="load-more-trigger" style="height: 1px;"></div>
-      <div id="loading-indicator" style="display: none; text-align: center; padding: 20px; color: #ff8c00; font-size: 12px; font-family: 'Courier New', monospace; text-shadow: 0 0 2px rgba(255, 140, 0, 0.2);">
+
+  console.log(`📸 Found ${photos.length} photos`);
+
+  // Save JSON data (used by lazy-loader)
+  fs.writeFileSync(DATA_FILE, JSON.stringify(
+    photos.map(p => ({ filename: p.filename, date: p.date, label: p.label })),
+    null, 2
+  ));
+
+  const initial   = photos.slice(0, INITIAL_LOAD);
+  const remaining = photos.slice(INITIAL_LOAD);
+
+  let content = initial.map((p, i) => photoHTML(p, i)).join('');
+
+  if (remaining.length) {
+    content += `
+      <div id="load-more-trigger" style="height:1px;"></div>
+      <div id="loading-indicator" style="display:none;text-align:center;padding:20px;color:#ff8c00;font-size:12px;font-family:'Courier New',monospace;">
         <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
       </div>
-      <div id="manual-load-more" style="text-align: center; padding: 20px;">
-        <button onclick="loadMorePhotos()" style="background: rgba(40, 20, 0, 0.6); border: 1px solid rgba(255, 140, 0, 0.15); color: #ff8c00; padding: 8px 16px; font-size: 12px; font-family: 'Courier New', monospace; cursor: pointer; text-shadow: 0 0 2px rgba(255, 140, 0, 0.2); transition: all 0.2s ease; border-radius: 3px;">load more</button>
-      </div>
-    `;
+      <div id="manual-load-more" style="text-align:center;padding:20px;">
+        <button onclick="loadMorePhotos()" style="background:rgba(40,20,0,0.6);border:1px solid rgba(255,140,0,0.15);color:#ff8c00;padding:8px 16px;font-size:12px;font-family:'Courier New',monospace;cursor:pointer;border-radius:3px;">load more</button>
+      </div>`;
   }
-  
-  // Insert content into template
-  let finalHTML = template.replace('{{CONTENT}}', allContent);
-  
-  // Replace all occurrences of each placeholder
-  const replacements = {
-    '{{PHOTO_COUNT}}': initialPhotos.length,
-    '{{TOTAL_PHOTOS}}': photoFiles.length,
-    '{{INITIAL_LOAD}}': INITIAL_LOAD,
-    '{{LOAD_MORE_BATCH}}': LOAD_MORE_BATCH,
-    '{{REMAINING_COUNT}}': remainingPhotos.length,
-    '{{EMBEDDED_PHOTO_DATA}}': embeddedPhotoData
+
+  const vars = {
+    '{{CONTENT}}':            content,
+    '{{PHOTO_COUNT}}':        initial.length,
+    '{{TOTAL_PHOTOS}}':       photos.length,
+    '{{INITIAL_LOAD}}':       INITIAL_LOAD,
+    '{{LOAD_MORE_BATCH}}':    LOAD_MORE_BATCH,
+    '{{REMAINING_COUNT}}':    remaining.length,
+    '{{EMBEDDED_PHOTO_DATA}}': JSON.stringify(
+      photos.map(p => ({ filename: p.filename, date: p.date, label: p.label }))
+    ),
   };
-  
-  Object.entries(replacements).forEach(([placeholder, value]) => {
-    // Replace all occurrences globally
-    const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-    finalHTML = finalHTML.replace(regex, value);
-  });
-  
-  // Remove the old hidden count placeholder
-  finalHTML = finalHTML.replace('{{#HIDDEN_COUNT}}<span class="more-photos" title="{{HIDDEN_COUNT}} older photos hidden">+{{HIDDEN_COUNT}}</span>{{/HIDDEN_COUNT}}', '');
-  
-  // Write output
-  fs.writeFileSync(OUTPUT_FILE, finalHTML);
-  
-  console.log(`✅ Built ${OUTPUT_FILE}`);
-  console.log(`📊 Photos: ${initialPhotos.length} loaded, ${remainingPhotos.length} available for lazy load`);
-  console.log(`💾 Photo data saved to ${PHOTOS_DATA_FILE}`);
+
+  let html = template;
+  for (const [key, val] of Object.entries(vars)) {
+    html = html.replaceAll(key, val);
+  }
+
+  // Clean up any leftover template artifacts
+  html = html.replace(/\{\{#HIDDEN_COUNT\}\}.*?\{\{\/HIDDEN_COUNT\}\}/gs, '');
+
+  fs.writeFileSync(OUTPUT_FILE, html);
+
+  console.log(`✅ Built index.html  (${initial.length} visible, ${remaining.length} lazy)`);
+  console.log(`💾 Data written to photos-data.json`);
 }
 
-// Run build
-buildSite().catch(error => {
-  console.error('❌ Build failed:', error);
-  process.exit(1);
-});
+build().catch(err => { console.error('❌', err); process.exit(1); });

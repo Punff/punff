@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>punff</title>
 <style>
-* {
+/* ─── reset ────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ─── base ─────────────────────────────────────────────────────────────────── */
 html {
   font-size: 16px;
   background: #0a0a0a;
@@ -23,149 +25,115 @@ html {
 
 body {
   min-height: 100vh;
-  padding: 0;
-  position: relative;
 }
 
-/* CRT scanlines effect */
+/* ─── CRT scanlines (fixed overlay, pointer-events off) ───────────────────── */
 body::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
+  inset: 0;
+  background: repeating-linear-gradient(
     to bottom,
-    transparent 50%,
-    rgba(0, 0, 0, 0.1) 50%
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.08) 3px,
+    rgba(0,0,0,0.08) 4px
   );
-  background-size: 100% 4px;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.15;
-  mix-blend-mode: overlay;
+  /* will-change keeps it on its own compositor layer — no repaints on scroll */
+  will-change: transform;
 }
 
-/* Vignette */
+/* ─── vignette ─────────────────────────────────────────────────────────────── */
 body::after {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 0%,
-    rgba(0, 0, 0, 0.8) 100%
-  );
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
   pointer-events: none;
   z-index: 9998;
-  opacity: 0.3;
+  will-change: transform;
 }
 
-/* Warm terminal-style header */
+/* ─── header ───────────────────────────────────────────────────────────────── */
 .site-title {
   position: fixed;
   top: 12px;
   left: 12px;
   z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   color: #ff8c00;
   text-decoration: none;
   font-family: 'Courier New', Courier, monospace;
   letter-spacing: 1px;
-  text-shadow: 0 0 3px rgba(255, 140, 0, 0.2);
+  text-shadow: 0 0 3px rgba(255,140,0,0.2);
   padding: 8px 12px;
-  background: rgba(40, 20, 0, 0.6);
-  border: 1px solid rgba(255, 140, 0, 0.15);
+  background: rgba(40,20,0,0.6);
+  border: 1px solid rgba(255,140,0,0.15);
   border-radius: 3px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  transition: color 0.3s, background 0.3s, border-color 0.3s, transform 0.3s, box-shadow 0.3s;
 }
-
+.site-title::before { content: '~'; opacity: 0.7; }
+.site-title::after  { content: '|'; animation: cur 1.5s step-end infinite; }
 .site-title:hover {
   color: #ffa500;
-  background: rgba(50, 25, 0, 0.7);
-  border-color: rgba(255, 140, 0, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: rgba(50,25,0,0.7);
+  border-color: rgba(255,140,0,0.3);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.site-title::before {
-  content: '~';
-  color: #ff8c00;
-  opacity: 0.7;
-}
-
-.site-title::after {
-  content: '|';
-  color: #ff8c00;
-  animation: blink 1.5s infinite;
-  opacity: 0.8;
-}
-
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
-
-/* Masonry-like photo wall */
+/* ─── photo wall — CSS columns masonry ────────────────────────────────────── */
 .photo-wall {
-  padding: 0;
   column-count: 3;
   column-gap: 4px;
   max-width: 900px;
   margin: 0 auto;
+  padding-bottom: 44px; /* room for status bar */
 }
 
 @media (max-width: 768px) {
-  .photo-wall {
-    column-count: 2;
-    max-width: 100%;
-    padding: 0 4px;
-  }
+  .photo-wall { column-count: 2; max-width: 100%; padding: 0 4px 44px; }
 }
-
 @media (max-width: 480px) {
-  .photo-wall {
-    column-count: 1;
-    padding: 0 8px;
-  }
+  .photo-wall { column-count: 1; padding: 0 8px 44px; }
 }
 
-/* Photo items - masonry style */
+/* ─── photo item ───────────────────────────────────────────────────────────── */
 .photo-item {
   position: relative;
   overflow: hidden;
   background: #111;
-  transition: all 0.2s ease;
-  cursor: pointer;
   break-inside: avoid;
   margin-bottom: 4px;
   border-radius: 2px;
+  /* 
+   * Subtle static offsets — no translate/rotate so column layout stays stable.
+   * Hover lifts the card instead, giving the "alive" feel without scroll jank.
+   */
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-/* Natural photo sizes with slight offsets */
-.photo-item.offset-1 { transform: translate(-2px, -1px); }
-.photo-item.offset-2 { transform: translate(2px, -1px); }
-.photo-item.offset-3 { transform: translate(-1px, 2px); }
-.photo-item.offset-4 { transform: translate(1px, 2px); }
-.photo-item.offset-5 { transform: rotate(0.5deg); }
-.photo-item.offset-6 { transform: rotate(-0.5deg); }
+/* Slight static nudges — CSS columns handles them cleanly */
+.photo-item.offset-1 { margin-left: -1px; }
+.photo-item.offset-2 { margin-left:  1px; }
+.photo-item.offset-3 { margin-top:  -1px; }
+.photo-item.offset-4 { margin-top:   1px; }
+.photo-item.offset-5 { margin-left: -2px; }
+.photo-item.offset-6 { margin-left:  2px; }
 
 .photo-item:hover {
+  transform: scale(1.025);
+  box-shadow: 0 4px 20px rgba(255,140,0,0.1);
+  border: 1px solid rgba(255,140,0,0.1);
   z-index: 10;
-  transform: scale(1.02) !important;
-  box-shadow: 0 4px 20px rgba(255, 140, 0, 0.08), 0 0 30px rgba(255, 140, 0, 0.03);
-  border: 1px solid rgba(255, 140, 0, 0.08);
 }
 
-/* Show full images with natural dimensions */
+/* ─── images ───────────────────────────────────────────────────────────────── */
 .photo-item img {
   width: 100%;
   height: auto;
@@ -173,705 +141,447 @@ body::after {
   background: #111;
   transition: transform 0.3s ease;
 }
-
 .photo-item:hover img {
   transform: scale(1.03);
 }
 
-/* Date/time stamp - subtle overlay */
+/* ─── skeleton shimmer — only while not loaded ─────────────────────────────── */
+/*
+ * The shimmer is a separate child element (injected by JS) rather than ::before,
+ * so removing it doesn't trigger a style recalc on the whole item.
+ */
+.photo-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #111 25%, #1c1c1c 50%, #111 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  pointer-events: none;
+}
+@keyframes shimmer {
+  0%   { background-position:  200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── timestamp overlay ────────────────────────────────────────────────────── */
 .photo-time {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
+  padding: 12px 6px 4px;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.9);
-  background: linear-gradient(transparent, rgba(40, 20, 0, 0.8));
-  padding: 8px 6px 4px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
   font-family: 'Courier New', Courier, monospace;
   letter-spacing: 0.5px;
   text-align: center;
+  color: rgba(255,255,255,0.9);
+  background: linear-gradient(transparent, rgba(30,15,0,0.85));
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
+.photo-item:hover .photo-time { opacity: 1; }
 
-.photo-item:hover .photo-time {
-  opacity: 1;
-}
-
-/* Loading placeholder */
-.photo-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, #111 25%, #1a1a1a 50%, #111 75%);
-  background-size: 200% 100%;
-  animation: loading 1.5s infinite;
-}
-
-@keyframes loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-.photo-item.loaded::before {
-  display: none;
-}
-
-/* Month separators - subtle */
-.month-marker {
-  grid-column: 1 / -1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #333, transparent);
-  margin: 20px 0 30px;
-  position: relative;
-}
-
-.month-label {
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #0a0a0a;
-  padding: 0 12px;
-  font-size: 11px;
-  color: #666;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  font-family: 'Courier New', Courier, monospace;
-}
-
-/* Lightbox - warm style */
+/* ─── lightbox ─────────────────────────────────────────────────────────────── */
 .lightbox {
   display: none;
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(20, 10, 0, 0.97);
+  inset: 0;
+  background: rgba(15,8,0,0.97);
   z-index: 10000;
   align-items: center;
   justify-content: center;
   padding: 20px;
 }
-
-.lightbox::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(255, 140, 0, 0.02) 0px,
-    rgba(255, 140, 0, 0.02) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.5;
-}
-
-.lightbox.active {
-  display: flex;
-}
+.lightbox.active { display: flex; }
 
 .lightbox-img {
   max-width: 90%;
-  max-height: 90%;
+  max-height: 90vh;
   object-fit: contain;
 }
 
 .lightbox-time {
   position: absolute;
-  bottom: 20px;
+  bottom: 0;
   left: 0;
-  width: 100%;
+  right: 0;
+  padding: 8px;
   text-align: center;
   font-size: 12px;
-  color: #ff8c00;
   font-family: 'Courier New', Courier, monospace;
   letter-spacing: 1px;
-  text-shadow: 0 0 3px rgba(255, 140, 0, 0.2);
-  background: rgba(40, 20, 0, 0.6);
-  padding: 8px;
-  border-top: 1px solid rgba(255, 140, 0, 0.15);
+  color: #ff8c00;
+  text-shadow: 0 0 3px rgba(255,140,0,0.2);
+  background: rgba(40,20,0,0.6);
+  border-top: 1px solid rgba(255,140,0,0.15);
 }
 
-/* Close lightbox */
-.lightbox::after {
-  content: '×';
+.lightbox-close {
   position: absolute;
-  top: 20px;
+  top: 16px;
   right: 20px;
-  font-size: 20px;
+  font-size: 22px;
   color: #ff8c00;
   cursor: pointer;
-  font-family: 'Courier New', Courier, monospace;
-  padding: 8px;
   opacity: 0.7;
-  transition: all 0.2s ease;
+  transition: opacity 0.2s, transform 0.2s;
+  line-height: 1;
+  user-select: none;
 }
+.lightbox-close:hover { opacity: 1; transform: scale(1.15); }
 
-.lightbox::after:hover {
-  color: #ffa500;
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-/* Mobile optimizations */
-@media (max-width: 768px) {
-  .photo-wall {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-    padding: 15px 0 50px;
-  }
-  
-  .site-title {
-    font-size: 12px;
-    top: 8px;
-    left: 8px;
-  }
-  
-  .photo-time {
-    font-size: 9px;
-    padding: 6px 4px 3px;
-  }
-}
-
-@media (max-width: 480px) {
-  .photo-wall {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1px;
-  }
-  
-  .photo-time {
-    font-size: 8px;
-    padding: 4px 3px 2px;
-  }
-}
-
-/* Scrollbar - old school */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #111;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 0;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #444;
-}
-
-/* Selection color */
-::selection {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-/* Warm status line */
+/* ─── status bar ───────────────────────────────────────────────────────────── */
 .status-line {
   position: fixed;
   bottom: 0;
   left: 0;
-  width: 100%;
-  background: rgba(40, 20, 0, 0.7);
-  border-top: 1px solid rgba(255, 140, 0, 0.2);
-  padding: 10px 15px;
-  font-size: 11px;
-  color: #ff8c00;
-  font-family: 'Courier New', Courier, monospace;
+  right: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  text-shadow: 0 0 2px rgba(255, 140, 0, 0.2);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-  z-index: 100;
-}
-
-.status-line span:first-child {
-  color: #ffa500;
-  opacity: 0.9;
-}
-
-.status-line span:last-child {
+  padding: 8px 15px;
+  font-size: 11px;
+  font-family: 'Courier New', Courier, monospace;
   color: #ff8c00;
-  opacity: 0.9;
+  background: rgba(40,20,0,0.75);
+  border-top: 1px solid rgba(255,140,0,0.2);
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
+  z-index: 100;
+  text-shadow: 0 0 2px rgba(255,140,0,0.2);
+  backdrop-filter: blur(4px);
 }
+.status-line .cam  { color: #ffa500; opacity: 0.9; }
+.status-line .count { color: #ff8c00; opacity: 0.9; }
 
-/* Manual load more button hover effect */
+/* ─── load-more button ─────────────────────────────────────────────────────── */
+#manual-load-more button {
+  background: rgba(40,20,0,0.6);
+  border: 1px solid rgba(255,140,0,0.15);
+  color: #ff8c00;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+}
 #manual-load-more button:hover {
-  background: rgba(50, 25, 0, 0.7) !important;
-  border-color: rgba(255, 140, 0, 0.3) !important;
-  color: #ffa500 !important;
+  background: rgba(50,25,0,0.7);
+  border-color: rgba(255,140,0,0.3);
+  color: #ffa500;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Loading dots animation */
-#loading-indicator .dot {
-  transition: opacity 0.3s ease;
+/* ─── loading dots ─────────────────────────────────────────────────────────── */
+.dot { animation: blink-dot 1s ease-in-out infinite; }
+.dot:nth-child(2) { animation-delay: 0.15s; }
+.dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes blink-dot {
+  0%, 100% { opacity: 0.2; }
+  50%       { opacity: 1;   }
 }
 
-#loading-indicator .dot:nth-child(1) { animation-delay: 0s; }
-#loading-indicator .dot:nth-child(2) { animation-delay: 0.1s; }
-#loading-indicator .dot:nth-child(3) { animation-delay: 0.2s; }
-
-@keyframes blink {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+/* ─── cursor blink ─────────────────────────────────────────────────────────── */
+@keyframes cur {
+  0%, 49%  { opacity: 1; }
+  50%, 100% { opacity: 0; }
 }
+.cursor { animation: cur 1s step-end infinite; }
 
-.loading .dot {
-  animation: blink 1s infinite;
-}
+/* ─── scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
 
-.cursor {
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
+::selection { background: rgba(255,255,255,0.1); color: #fff; }
 </style>
 </head>
 <body>
+
 <a href="/" class="site-title">punff.port0.org</a>
 
 <div class="photo-wall" id="photoWall">
   
     <div class="photo-item offset-1" data-filename="P4135039.JPG" data-date="2026-04-13T20:29:42.000Z">
       <img src="assets/photos/P4135039.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 13 22:29</div>
+      <div class="photo-time">13 Apr 22:29</div>
     </div>
-  
     <div class="photo-item offset-2" data-filename="P4135027.JPG" data-date="2026-04-13T20:16:44.000Z">
       <img src="assets/photos/P4135027.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 13 22:16</div>
+      <div class="photo-time">13 Apr 22:16</div>
     </div>
-  
     <div class="photo-item offset-3" data-filename="P4135020.JPG" data-date="2026-04-13T20:08:44.000Z">
       <img src="assets/photos/P4135020.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 13 22:08</div>
+      <div class="photo-time">13 Apr 22:08</div>
     </div>
-  
     <div class="photo-item offset-4" data-filename="P4135014.JPG" data-date="2026-04-13T20:02:06.000Z">
       <img src="assets/photos/P4135014.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 13 22:02</div>
+      <div class="photo-time">13 Apr 22:02</div>
     </div>
-  
     <div class="photo-item offset-5" data-filename="P4135012.JPG" data-date="2026-04-13T20:01:56.000Z">
       <img src="assets/photos/P4135012.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 13 22:01</div>
+      <div class="photo-time">13 Apr 22:01</div>
     </div>
-  
     <div class="photo-item offset-6" data-filename="P4135031.JPG" data-date="2026-04-13T19:21:36.000Z">
       <img src="assets/photos/P4135031.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 13 21:21</div>
+      <div class="photo-time">13 Apr 21:21</div>
     </div>
-  
     <div class="photo-item offset-1" data-filename="P4114879.JPG" data-date="2026-04-12T07:40:34.000Z">
       <img src="assets/photos/P4114879.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 12 09:40</div>
+      <div class="photo-time">12 Apr 09:40</div>
     </div>
-  
     <div class="photo-item offset-2" data-filename="P4114949.JPG" data-date="2026-04-12T07:37:16.000Z">
       <img src="assets/photos/P4114949.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 12 09:37</div>
+      <div class="photo-time">12 Apr 09:37</div>
     </div>
-  
     <div class="photo-item offset-3" data-filename="P4114982.JPG" data-date="2026-04-12T07:35:50.000Z">
       <img src="assets/photos/P4114982.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 12 09:35</div>
+      <div class="photo-time">12 Apr 09:35</div>
     </div>
-  
     <div class="photo-item offset-4" data-filename="P4114984.JPG" data-date="2026-04-12T07:35:48.000Z">
       <img src="assets/photos/P4114984.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 12 09:35</div>
+      <div class="photo-time">12 Apr 09:35</div>
     </div>
-  
     <div class="photo-item offset-5" data-filename="P4115011.JPG" data-date="2026-04-11T22:06:02.000Z">
       <img src="assets/photos/P4115011.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 12 00:06</div>
+      <div class="photo-time">12 Apr 00:06</div>
     </div>
-  
     <div class="photo-item offset-6" data-filename="P4114999.JPG" data-date="2026-04-11T19:21:48.000Z">
       <img src="assets/photos/P4114999.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 21:21</div>
+      <div class="photo-time">11 Apr 21:21</div>
     </div>
-  
     <div class="photo-item offset-1" data-filename="P4114973.JPG" data-date="2026-04-11T16:32:14.000Z">
       <img src="assets/photos/P4114973.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 18:32</div>
+      <div class="photo-time">11 Apr 18:32</div>
     </div>
-  
     <div class="photo-item offset-2" data-filename="P4114952.JPG" data-date="2026-04-11T16:18:02.000Z">
       <img src="assets/photos/P4114952.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 18:18</div>
+      <div class="photo-time">11 Apr 18:18</div>
     </div>
-  
     <div class="photo-item offset-3" data-filename="P4114937.JPG" data-date="2026-04-11T16:03:44.000Z">
       <img src="assets/photos/P4114937.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 18:03</div>
+      <div class="photo-time">11 Apr 18:03</div>
     </div>
-  
     <div class="photo-item offset-4" data-filename="P4114928.JPG" data-date="2026-04-11T15:50:20.000Z">
       <img src="assets/photos/P4114928.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 17:50</div>
+      <div class="photo-time">11 Apr 17:50</div>
     </div>
-  
     <div class="photo-item offset-5" data-filename="P4114927.JPG" data-date="2026-04-11T15:48:20.000Z">
       <img src="assets/photos/P4114927.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 17:48</div>
+      <div class="photo-time">11 Apr 17:48</div>
     </div>
-  
     <div class="photo-item offset-6" data-filename="P4114926.JPG" data-date="2026-04-11T15:46:24.000Z">
       <img src="assets/photos/P4114926.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 17:46</div>
+      <div class="photo-time">11 Apr 17:46</div>
     </div>
-  
     <div class="photo-item offset-1" data-filename="P4114916.JPG" data-date="2026-04-11T15:26:04.000Z">
       <img src="assets/photos/P4114916.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 17:26</div>
+      <div class="photo-time">11 Apr 17:26</div>
     </div>
-  
     <div class="photo-item offset-2" data-filename="P4114915.JPG" data-date="2026-04-11T15:24:06.000Z">
       <img src="assets/photos/P4114915.JPG" alt="" loading="lazy">
-      <div class="photo-time">Apr 11 17:24</div>
+      <div class="photo-time">11 Apr 17:24</div>
     </div>
-  
-      <div id="load-more-trigger" style="height: 1px;"></div>
-      <div id="loading-indicator" style="display: none; text-align: center; padding: 20px; color: #ff8c00; font-size: 12px; font-family: 'Courier New', monospace; text-shadow: 0 0 2px rgba(255, 140, 0, 0.2);">
+      <div id="load-more-trigger" style="height:1px;"></div>
+      <div id="loading-indicator" style="display:none;text-align:center;padding:20px;color:#ff8c00;font-size:12px;font-family:'Courier New',monospace;">
         <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
       </div>
-      <div id="manual-load-more" style="text-align: center; padding: 20px;">
-        <button onclick="loadMorePhotos()" style="background: rgba(40, 20, 0, 0.6); border: 1px solid rgba(255, 140, 0, 0.15); color: #ff8c00; padding: 8px 16px; font-size: 12px; font-family: 'Courier New', monospace; cursor: pointer; text-shadow: 0 0 2px rgba(255, 140, 0, 0.2); transition: all 0.2s ease; border-radius: 3px;">load more</button>
+      <div id="manual-load-more" style="text-align:center;padding:20px;">
+        <button onclick="loadMorePhotos()" style="background:rgba(40,20,0,0.6);border:1px solid rgba(255,140,0,0.15);color:#ff8c00;padding:8px 16px;font-size:12px;font-family:'Courier New',monospace;cursor:pointer;border-radius:3px;">load more</button>
       </div>
-    
 </div>
 
 <div class="lightbox" id="lightbox">
-  <img class="lightbox-img" src="" alt="">
+  <span class="lightbox-close" id="lightboxClose">×</span>
+  <img class="lightbox-img" id="lightboxImg" src="" alt="">
   <div class="lightbox-time" id="lightboxTime"></div>
 </div>
 
 <div class="status-line">
-  <span>olympus epl-2</span>
+  <span class="cam">olympus epl-2</span>
   <span class="cursor">_</span>
-  <span>20/30</span>
+  <span class="count" id="photoCount">20/30</span>
 </div>
 
 <script>
-// Handle image loading
-function initImageLoading() {
-  const items = document.querySelectorAll('.photo-item');
-  
-  items.forEach(item => {
-    const img = item.querySelector('img');
-    
-    if (img.complete) {
-      // Image already loaded
-      item.classList.add('loaded');
-    } else {
-      // Wait for image to load
-      img.addEventListener('load', function() {
-        item.classList.add('loaded');
-      });
-      
-      img.addEventListener('error', function() {
-        // If image fails to load, still show the item
-        item.classList.add('loaded');
-        item.style.background = '#222';
-        item.innerHTML = '<div style="color:#666;text-align:center;padding:20px;font-size:12px;">failed to load</div>';
-      });
-    }
+// ─── constants ────────────────────────────────────────────────────────────────
+const TOTAL_PHOTOS  = 30;
+const BATCH_SIZE    = 10;
+const EMBEDDED_DATA = [{"filename":"P4135039.JPG","date":"2026-04-13T20:29:42.000Z","label":"13 Apr 22:29"},{"filename":"P4135027.JPG","date":"2026-04-13T20:16:44.000Z","label":"13 Apr 22:16"},{"filename":"P4135020.JPG","date":"2026-04-13T20:08:44.000Z","label":"13 Apr 22:08"},{"filename":"P4135014.JPG","date":"2026-04-13T20:02:06.000Z","label":"13 Apr 22:02"},{"filename":"P4135012.JPG","date":"2026-04-13T20:01:56.000Z","label":"13 Apr 22:01"},{"filename":"P4135031.JPG","date":"2026-04-13T19:21:36.000Z","label":"13 Apr 21:21"},{"filename":"P4114879.JPG","date":"2026-04-12T07:40:34.000Z","label":"12 Apr 09:40"},{"filename":"P4114949.JPG","date":"2026-04-12T07:37:16.000Z","label":"12 Apr 09:37"},{"filename":"P4114982.JPG","date":"2026-04-12T07:35:50.000Z","label":"12 Apr 09:35"},{"filename":"P4114984.JPG","date":"2026-04-12T07:35:48.000Z","label":"12 Apr 09:35"},{"filename":"P4115011.JPG","date":"2026-04-11T22:06:02.000Z","label":"12 Apr 00:06"},{"filename":"P4114999.JPG","date":"2026-04-11T19:21:48.000Z","label":"11 Apr 21:21"},{"filename":"P4114973.JPG","date":"2026-04-11T16:32:14.000Z","label":"11 Apr 18:32"},{"filename":"P4114952.JPG","date":"2026-04-11T16:18:02.000Z","label":"11 Apr 18:18"},{"filename":"P4114937.JPG","date":"2026-04-11T16:03:44.000Z","label":"11 Apr 18:03"},{"filename":"P4114928.JPG","date":"2026-04-11T15:50:20.000Z","label":"11 Apr 17:50"},{"filename":"P4114927.JPG","date":"2026-04-11T15:48:20.000Z","label":"11 Apr 17:48"},{"filename":"P4114926.JPG","date":"2026-04-11T15:46:24.000Z","label":"11 Apr 17:46"},{"filename":"P4114916.JPG","date":"2026-04-11T15:26:04.000Z","label":"11 Apr 17:26"},{"filename":"P4114915.JPG","date":"2026-04-11T15:24:06.000Z","label":"11 Apr 17:24"},{"filename":"P4114911.JPG","date":"2026-04-11T15:15:56.000Z","label":"11 Apr 17:15"},{"filename":"P4114897.JPG","date":"2026-04-11T13:56:24.000Z","label":"11 Apr 15:56"},{"filename":"P4114896.JPG","date":"2026-04-11T13:27:12.000Z","label":"11 Apr 15:27"},{"filename":"P4114894.JPG","date":"2026-04-11T12:55:18.000Z","label":"11 Apr 14:55"},{"filename":"P4114888.JPG","date":"2026-04-11T11:24:46.000Z","label":"11 Apr 13:24"},{"filename":"P4114873.JPG","date":"2026-04-11T08:21:12.000Z","label":"11 Apr 10:21"},{"filename":"P4104871.JPG","date":"2026-04-10T17:35:10.000Z","label":"10 Apr 19:35"},{"filename":"P4104858.JPG","date":"2026-04-10T16:13:24.000Z","label":"10 Apr 18:13"},{"filename":"P4094796.JPG","date":"2026-04-09T18:15:18.000Z","label":"9 Apr 20:15"},{"filename":"P4064723.JPG","date":"2026-04-06T18:48:04.000Z","label":"6 Apr 20:48"}];
+
+// ─── state ────────────────────────────────────────────────────────────────────
+let loadedCount  = 20;
+let isLoading    = false;
+let observer     = null;
+
+// ─── skeleton helpers ─────────────────────────────────────────────────────────
+function attachSkeleton(item) {
+  const sk = document.createElement('div');
+  sk.className = 'photo-skeleton';
+  item.appendChild(sk);
+
+  const img = item.querySelector('img');
+  const done = () => sk.remove();
+
+  if (img.complete && img.naturalWidth) { done(); return; }
+  img.addEventListener('load',  done, { once: true });
+  img.addEventListener('error', done, { once: true });
+}
+
+function initSkeletons(container) {
+  container.querySelectorAll('.photo-item').forEach(attachSkeleton);
+}
+
+// ─── lightbox ─────────────────────────────────────────────────────────────────
+const lightbox     = document.getElementById('lightbox');
+const lightboxImg  = document.getElementById('lightboxImg');
+const lightboxTime = document.getElementById('lightboxTime');
+const lightboxClose = document.getElementById('lightboxClose');
+
+function openLightbox(src, label) {
+  lightboxImg.src    = src;
+  lightboxTime.textContent = label;
+  lightbox.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  lightbox.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+lightboxClose.addEventListener('click', closeLightbox);
+lightbox.addEventListener('click', e => {
+  if (e.target === lightbox) closeLightbox();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && lightbox.classList.contains('active')) closeLightbox();
+});
+
+// ─── click handlers ───────────────────────────────────────────────────────────
+function attachClicks(container) {
+  container.querySelectorAll('.photo-item:not([data-bound])').forEach(item => {
+    item.dataset.bound = '1';
+    item.addEventListener('click', () => {
+      const img   = item.querySelector('img');
+      const label = item.querySelector('.photo-time').textContent;
+      openLightbox(img.src, label);
+    });
   });
 }
 
-// Lightbox
-const lightbox = document.getElementById('lightbox');
-const lightboxImg = lightbox.querySelector('.lightbox-img');
-const lightboxTime = document.getElementById('lightboxTime');
+// ─── photo count display ──────────────────────────────────────────────────────
+function updateCount() {
+  document.getElementById('photoCount').textContent =
+    `${Math.min(loadedCount, TOTAL_PHOTOS)}/${TOTAL_PHOTOS}`;
+}
 
-document.querySelectorAll('.photo-item').forEach(item => {
-  item.addEventListener('click', function() {
-    const img = this.querySelector('img');
-    const time = this.querySelector('.photo-time');
-    
-    lightboxImg.src = img.src;
-    lightboxTime.textContent = time.textContent;
-    lightbox.classList.add('active');
-    document.body.style.overflow = 'hidden';
+// ─── build photo HTML fragment ────────────────────────────────────────────────
+function buildPhotoItems(photos, startIndex) {
+  const frag = document.createDocumentFragment();
+  photos.forEach((photo, i) => {
+    const div = document.createElement('div');
+    div.className = `photo-item offset-${((startIndex + i) % 6) + 1}`;
+    div.dataset.filename = photo.filename;
+    div.dataset.date     = photo.date;
+    div.innerHTML =
+      `<img src="assets/photos/${photo.filename}" alt="" loading="lazy">` +
+      `<div class="photo-time">${photo.label}</div>`;
+    frag.appendChild(div);
   });
-});
+  return frag;
+}
 
-// Close lightbox
-lightbox.addEventListener('click', function(e) {
-  if (e.target === lightbox || e.target.className === 'lightbox-img') {
-    lightbox.classList.remove('active');
-    document.body.style.overflow = '';
-  }
-});
-
-// Close with Escape
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && lightbox.classList.contains('active')) {
-    lightbox.classList.remove('active');
-    document.body.style.overflow = '';
-  }
-});
-
-// Initialize on load
-document.addEventListener('DOMContentLoaded', initImageLoading);
-
-// Infinite scroll / load more functionality
-let isLoading = false;
-let loadedCount = 20;
-const totalPhotos = 30;
-const batchSize = 10;
-let scrollObserver = null;
-
-// Embedded photo data for file:// protocol support
-const embeddedPhotoData = [{"filename":"P4135039.JPG","date":"2026-04-13T20:29:42.000Z"},{"filename":"P4135027.JPG","date":"2026-04-13T20:16:44.000Z"},{"filename":"P4135020.JPG","date":"2026-04-13T20:08:44.000Z"},{"filename":"P4135014.JPG","date":"2026-04-13T20:02:06.000Z"},{"filename":"P4135012.JPG","date":"2026-04-13T20:01:56.000Z"},{"filename":"P4135031.JPG","date":"2026-04-13T19:21:36.000Z"},{"filename":"P4114879.JPG","date":"2026-04-12T07:40:34.000Z"},{"filename":"P4114949.JPG","date":"2026-04-12T07:37:16.000Z"},{"filename":"P4114982.JPG","date":"2026-04-12T07:35:50.000Z"},{"filename":"P4114984.JPG","date":"2026-04-12T07:35:48.000Z"},{"filename":"P4115011.JPG","date":"2026-04-11T22:06:02.000Z"},{"filename":"P4114999.JPG","date":"2026-04-11T19:21:48.000Z"},{"filename":"P4114973.JPG","date":"2026-04-11T16:32:14.000Z"},{"filename":"P4114952.JPG","date":"2026-04-11T16:18:02.000Z"},{"filename":"P4114937.JPG","date":"2026-04-11T16:03:44.000Z"},{"filename":"P4114928.JPG","date":"2026-04-11T15:50:20.000Z"},{"filename":"P4114927.JPG","date":"2026-04-11T15:48:20.000Z"},{"filename":"P4114926.JPG","date":"2026-04-11T15:46:24.000Z"},{"filename":"P4114916.JPG","date":"2026-04-11T15:26:04.000Z"},{"filename":"P4114915.JPG","date":"2026-04-11T15:24:06.000Z"},{"filename":"P4114911.JPG","date":"2026-04-11T15:15:56.000Z"},{"filename":"P4114897.JPG","date":"2026-04-11T13:56:24.000Z"},{"filename":"P4114896.JPG","date":"2026-04-11T13:27:12.000Z"},{"filename":"P4114894.JPG","date":"2026-04-11T12:55:18.000Z"},{"filename":"P4114888.JPG","date":"2026-04-11T11:24:46.000Z"},{"filename":"P4114873.JPG","date":"2026-04-11T08:21:12.000Z"},{"filename":"P4104871.JPG","date":"2026-04-10T17:35:10.000Z"},{"filename":"P4104858.JPG","date":"2026-04-10T16:13:24.000Z"},{"filename":"P4094796.JPG","date":"2026-04-09T18:15:18.000Z"},{"filename":"P4064723.JPG","date":"2026-04-06T18:48:04.000Z"}];
-
+// ─── load more ────────────────────────────────────────────────────────────────
 async function loadMorePhotos() {
-  console.log('loadMorePhotos called! isLoading?', isLoading, 'loadedCount:', loadedCount, 'totalPhotos:', totalPhotos);
-  if (isLoading || loadedCount >= totalPhotos) {
-    console.log('Skipping: isLoading=', isLoading, 'loadedCount>=totalPhotos?', loadedCount >= totalPhotos);
-    return;
-  }
-  
+  if (isLoading || loadedCount >= TOTAL_PHOTOS) return;
   isLoading = true;
-  const loadingIndicator = document.getElementById('loading-indicator');
-  const loadMoreTrigger = document.getElementById('load-more-trigger');
-  console.log('Loading indicator found?', !!loadingIndicator, 'Trigger found?', !!loadMoreTrigger);
-  
-  // Show loading indicator with CSS animation
-  if (loadingIndicator) {
-    loadingIndicator.style.display = 'block';
-    loadingIndicator.classList.add('loading');
-    console.log('Loading indicator shown');
-  }
-  
-  // No delay - let it load immediately
-  
+
+  const indicator   = document.getElementById('loading-indicator');
+  const trigger     = document.getElementById('load-more-trigger');
+  const wall        = document.getElementById('photoWall');
+
+  if (indicator) indicator.style.display = 'block';
+
   try {
-    let allPhotos = [];
-    
-    // Try to fetch first (works on HTTP)
-    console.log('Trying to fetch photos-data.json...');
+    // Prefer fresh fetch; fall back to embedded data (works on file://)
+    let allPhotos = EMBEDDED_DATA;
     try {
-      const response = await fetch('photos-data.json');
-      if (response.ok) {
-        allPhotos = await response.json();
-        console.log('Photos data loaded via fetch, total:', allPhotos.length);
-      } else {
-        console.log('Fetch failed, using embedded data');
-        throw new Error('Fetch failed');
-      }
-    } catch (fetchError) {
-      // Fall back to embedded data (works on file:// protocol)
-      console.log('Using embedded photo data for file:// protocol support');
-      if (embeddedPhotoData && embeddedPhotoData.length > 0) {
-        allPhotos = embeddedPhotoData;
-        console.log('Embedded photos data loaded, total:', allPhotos.length);
-      } else {
-        console.error('No photo data available!');
-        throw new Error('No photo data available');
-      }
-    }
-    
-    // Get next batch
-    const nextBatch = allPhotos.slice(loadedCount, loadedCount + batchSize);
-    console.log('Next batch size:', nextBatch.length, 'from', loadedCount, 'to', loadedCount + batchSize);
-    
-    // Add photos to wall
-    const photoWall = document.getElementById('photoWall');
-    console.log('Photo wall found?', !!photoWall);
-    
-    const fragment = document.createDocumentFragment();
-    
-    nextBatch.forEach((photo, index) => {
-      const date = new Date(photo.date);
-      const dateTime = date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).replace(',', '');
-      
-      const offsetClass = `offset-${((loadedCount + index) % 6) + 1}`;
-      
-      const photoDiv = document.createElement('div');
-      photoDiv.className = `photo-item ${offsetClass}`;
-      photoDiv.dataset.filename = photo.filename;
-      photoDiv.dataset.date = photo.date;
-      photoDiv.innerHTML = `
-        <img src="assets/photos/${photo.filename}" alt="" loading="lazy">
-        <div class="photo-time">${dateTime}</div>
-      `;
-      
-      fragment.appendChild(photoDiv);
-    });
-    
-    console.log('Fragment created with', nextBatch.length, 'photos');
-    
-    // Insert before the load-more-trigger
-    if (loadMoreTrigger) {
-      console.log('Inserting before trigger');
-      loadMoreTrigger.parentNode.insertBefore(fragment, loadMoreTrigger);
+      const r = await fetch('photos-data.json');
+      if (r.ok) allPhotos = await r.json();
+    } catch (_) { /* use embedded */ }
+
+    const batch = allPhotos.slice(loadedCount, loadedCount + BATCH_SIZE);
+    const frag  = buildPhotoItems(batch, loadedCount);
+    const tempDiv = document.createElement('div');
+    tempDiv.appendChild(frag.cloneNode(true));
+
+    if (trigger) {
+      trigger.parentNode.insertBefore(frag, trigger);
     } else {
-      console.log('No trigger, appending to photo wall');
-      photoWall.appendChild(fragment);
+      wall.appendChild(frag);
     }
-    
-    loadedCount += nextBatch.length;
-    console.log('loadedCount updated to:', loadedCount);
-    
-    // Update status
-    updatePhotoCount();
-    
-    // Initialize new photos
-    initImageLoading();
-    attachPhotoClickHandlers();
-    
-    // If no more photos, clean up
-    if (loadedCount >= totalPhotos) {
-      if (loadMoreTrigger) loadMoreTrigger.remove();
-      if (loadingIndicator) loadingIndicator.remove();
-      const manualLoadMore = document.getElementById('manual-load-more');
-      if (manualLoadMore) manualLoadMore.remove();
-      if (scrollObserver) {
-        scrollObserver.disconnect();
-        scrollObserver = null;
-      }
+
+    loadedCount += batch.length;
+    updateCount();
+    initSkeletons(wall);
+    attachClicks(wall);
+
+    // Tear down controls when all loaded
+    if (loadedCount >= TOTAL_PHOTOS) {
+      ['load-more-trigger', 'loading-indicator', 'manual-load-more'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+      if (observer) { observer.disconnect(); observer = null; }
     }
-    
-  } catch (error) {
-    console.error('Failed to load more photos:', error);
-    if (loadingIndicator) {
-      loadingIndicator.innerHTML = 'error';
-      loadingIndicator.style.color = '#ff4444';
-      loadingIndicator.classList.remove('loading');
+
+  } catch (err) {
+    console.error('load more failed:', err);
+    if (indicator) {
+      indicator.textContent = 'error loading photos';
+      indicator.style.color = '#ff4444';
+      return; // don't hide indicator on error
     }
   } finally {
-    console.log('loadMorePhotos finished, isLoading set to false');
     isLoading = false;
-    if (loadingIndicator) {
-      loadingIndicator.style.display = 'none';
-      loadingIndicator.classList.remove('loading');
-    }
-    
-    // If we still have photos to load, re-observe the trigger
-    if (loadedCount < totalPhotos) {
-      console.log('Photos remaining, will observe trigger again');
-      setTimeout(() => {
-        const newTrigger = document.getElementById('load-more-trigger');
-        if (newTrigger && scrollObserver) {
-          scrollObserver.unobserve(newTrigger);
-          scrollObserver.observe(newTrigger);
-        }
-      }, 100);
-    } else {
-      console.log('All photos loaded!');
+    if (indicator) indicator.style.display = 'none';
+
+    // Re-observe trigger if still present
+    if (loadedCount < TOTAL_PHOTOS && observer) {
+      const t = document.getElementById('load-more-trigger');
+      if (t) { observer.unobserve(t); observer.observe(t); }
     }
   }
 }
 
-// Intersection Observer for infinite scroll
-function setupInfiniteScroll() {
-  const loadMoreTrigger = document.getElementById('load-more-trigger');
-  console.log('setupInfiniteScroll: trigger exists?', !!loadMoreTrigger);
-  if (!loadMoreTrigger) {
-    console.log('No load-more-trigger found (all photos loaded or error)');
-    return;
-  }
-  
-  // Clean up existing observer
-  if (scrollObserver) {
-    scrollObserver.disconnect();
-    scrollObserver = null;
-  }
-  
-  scrollObserver = new IntersectionObserver((entries) => {
-    const isIntersecting = entries[0].isIntersecting;
-    console.log('IntersectionObserver: trigger intersecting?', isIntersecting, 'isLoading?', isLoading, 'loadedCount:', loadedCount, '/', totalPhotos);
-    
-    if (isIntersecting && !isLoading && loadedCount < totalPhotos) {
-      console.log('LOADING MORE PHOTOS!');
-      loadMorePhotos();
-    }
-   }, {
-     rootMargin: '300px', // Load when 300px away (more reliable)
-     threshold: 0.1 // Trigger when 10% of trigger is visible (more reliable)
-   });
-  
-  scrollObserver.observe(loadMoreTrigger);
-  console.log('Observer set up successfully');
-}
-
-// Update photo count in status
-function updatePhotoCount() {
-  const countElement = document.querySelector('.status-line span:nth-child(3)');
-  if (countElement) {
-    countElement.textContent = `${loadedCount}/${totalPhotos}`;
-  }
-}
-
-// Attach click handlers to all photos
-function attachPhotoClickHandlers() {
-  document.querySelectorAll('.photo-item').forEach(item => {
-    // Only attach if not already attached
-    if (!item.dataset.clickHandlerAttached) {
-      item.addEventListener('click', function() {
-        const img = this.querySelector('img');
-        const time = this.querySelector('.photo-time');
-        
-        lightboxImg.src = img.src;
-        lightboxTime.textContent = time.textContent;
-        lightbox.classList.add('active');
-        document.body.style.overflow = 'hidden';
-      });
-      item.dataset.clickHandlerAttached = 'true';
-    }
-  });
-}
-
-// Make loadMorePhotos available globally for manual button
+// Make available to inline onclick
 window.loadMorePhotos = loadMorePhotos;
 
-// Initialize everything
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM loaded, initializing...');
-  initImageLoading();
-  attachPhotoClickHandlers();
-  setupInfiniteScroll();
-  updatePhotoCount();
-  console.log('Initialization complete. Total photos:', totalPhotos, 'Loaded:', loadedCount);
-});
+// ─── infinite scroll observer ─────────────────────────────────────────────────
+function setupObserver() {
+  const trigger = document.getElementById('load-more-trigger');
+  if (!trigger) return;
 
-// Add some terminal-like effect to status
-const statusCursor = document.querySelector('.cursor');
-if (statusCursor) {
-  setInterval(() => {
-    statusCursor.style.opacity = statusCursor.style.opacity === '0' ? '1' : '0';
-  }, 500);
+  observer = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting && !isLoading && loadedCount < TOTAL_PHOTOS) {
+      loadMorePhotos();
+    }
+  }, { rootMargin: '400px', threshold: 0 });
+
+  observer.observe(trigger);
 }
+
+// ─── init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const wall = document.getElementById('photoWall');
+  initSkeletons(wall);
+  attachClicks(wall);
+  setupObserver();
+  updateCount();
+});
 </script>
+
 </body>
 </html>
